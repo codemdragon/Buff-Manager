@@ -13,6 +13,7 @@
             --red: #8b0000;
             --dark-red: #5a0000;
             --border-style: 2px solid #8b4513;
+            --green: #2d5a27;
         }
         
         * {
@@ -136,6 +137,11 @@
             width: 200px;
             background-color: var(--dark-parchment);
             position: relative;
+            cursor: pointer;
+        }
+        
+        .character-card.active {
+            box-shadow: 0 0 0 2px var(--red);
         }
         
         .character-card h3 {
@@ -181,7 +187,43 @@
         
         .buff-details {
             margin-top: 10px;
-            white-space: pre-line;
+        }
+        
+        .buff-property {
+            margin-bottom: 8px;
+            display: flex;
+        }
+        
+        .buff-label {
+            font-weight: bold;
+            min-width: 150px;
+            color: var(--green);
+        }
+        
+        .buff-value {
+            flex: 1;
+        }
+        
+        .buff-description {
+            margin-top: 10px;
+            font-style: italic;
+            border-top: 1px dashed var(--gold);
+            padding-top: 10px;
+        }
+        
+        .buff-tags {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        .buff-tag {
+            background-color: var(--gold);
+            color: var(--ink);
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
         }
         
         .export-section {
@@ -209,6 +251,7 @@
             border-radius: 5px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
             display: none;
+            z-index: 1000;
         }
         
         .empty-state {
@@ -216,6 +259,12 @@
             padding: 20px;
             color: #666;
             font-style: italic;
+        }
+        
+        .filter-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -242,6 +291,12 @@
         
         <section class="buff-section">
             <h2>Buffs</h2>
+            <div class="filter-controls">
+                <select id="filter-character">
+                    <option value="">All Characters</option>
+                </select>
+                <input type="text" id="filter-buff" placeholder="Filter by buff name...">
+            </div>
             <div class="buff-form">
                 <select id="buff-character">
                     <option value="">Select Character</option>
@@ -271,12 +326,18 @@
     <script>
         // Data storage
         let characters = JSON.parse(localStorage.getItem('dndBuffManager')) || {};
+        let currentFilter = {
+            character: '',
+            buffName: ''
+        };
         
         // DOM elements
         const characterNameInput = document.getElementById('character-name');
         const addCharacterBtn = document.getElementById('add-character');
         const charactersList = document.getElementById('characters-list');
         const buffCharacterSelect = document.getElementById('buff-character');
+        const filterCharacterSelect = document.getElementById('filter-character');
+        const filterBuffInput = document.getElementById('filter-buff');
         const buffTextInput = document.getElementById('buff-text');
         const addBuffBtn = document.getElementById('add-buff');
         const buffsContainer = document.getElementById('buffs-container');
@@ -289,7 +350,7 @@
         // Initialize the app
         function init() {
             renderCharacters();
-            updateCharacterSelect();
+            updateCharacterSelects();
             renderBuffs();
             
             // Event listeners
@@ -299,11 +360,102 @@
             copyBtn.addEventListener('click', copyData);
             importBtn.addEventListener('click', () => importFileInput.click());
             importFileInput.addEventListener('change', importData);
+            filterCharacterSelect.addEventListener('change', updateFilter);
+            filterBuffInput.addEventListener('input', updateFilter);
             
             // Allow Enter key to add character
             characterNameInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') addCharacter();
             });
+        }
+        
+        // Parse buff text into structured data
+        function parseBuffText(text) {
+            const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+            
+            if (lines.length === 0) return null;
+            
+            const buff = {
+                name: lines[0],
+                level: '',
+                school: '',
+                castingTime: '',
+                range: '',
+                components: '',
+                duration: '',
+                source: '',
+                description: '',
+                tags: []
+            };
+            
+            let currentSection = '';
+            let descriptionLines = [];
+            
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                
+                if (line === 'Prepare') continue;
+                
+                // Check for section headers
+                if (line.includes('Level')) {
+                    // Extract level and school
+                    const levelMatch = line.match(/(\d+(?:st|nd|rd|th))\s*Level\s*(\w+)/);
+                    if (levelMatch) {
+                        buff.level = levelMatch[1];
+                        buff.school = levelMatch[2];
+                    }
+                    continue;
+                }
+                
+                if (line.startsWith('Casting Time:')) {
+                    currentSection = 'castingTime';
+                    continue;
+                }
+                
+                if (line.startsWith('Range/Area:')) {
+                    currentSection = 'range';
+                    continue;
+                }
+                
+                if (line.startsWith('Components:')) {
+                    currentSection = 'components';
+                    continue;
+                }
+                
+                if (line.startsWith('Duration:')) {
+                    currentSection = 'duration';
+                    continue;
+                }
+                
+                if (line.startsWith('Source:')) {
+                    currentSection = 'source';
+                    continue;
+                }
+                
+                if (line.startsWith('Tags:')) {
+                    currentSection = 'tags';
+                    continue;
+                }
+                
+                // Handle section content
+                if (currentSection && line) {
+                    if (currentSection === 'tags') {
+                        buff.tags.push(line);
+                    } else if (currentSection === 'description') {
+                        descriptionLines.push(line);
+                    } else {
+                        buff[currentSection] = line;
+                    }
+                } else if (line && !currentSection) {
+                    // Assume this is part of the description
+                    descriptionLines.push(line);
+                    currentSection = 'description';
+                }
+            }
+            
+            buff.description = descriptionLines.join(' ');
+            
+            return buff;
         }
         
         // Render characters list
@@ -318,6 +470,9 @@
             for (const charName in characters) {
                 const charCard = document.createElement('div');
                 charCard.className = 'character-card';
+                if (currentFilter.character === charName) {
+                    charCard.classList.add('active');
+                }
                 charCard.innerHTML = `
                     <h3>${charName}</h3>
                     <button class="delete-btn" data-character="${charName}">×</button>
@@ -334,37 +489,61 @@
                 
                 // Add click to filter buffs by character
                 charCard.addEventListener('click', () => {
-                    filterBuffsByCharacter(charName);
+                    if (currentFilter.character === charName) {
+                        currentFilter.character = '';
+                    } else {
+                        currentFilter.character = charName;
+                    }
+                    renderCharacters();
+                    renderBuffs();
                 });
             }
         }
         
-        // Update character select dropdown
-        function updateCharacterSelect() {
+        // Update character select dropdowns
+        function updateCharacterSelects() {
             buffCharacterSelect.innerHTML = '<option value="">Select Character</option>';
+            filterCharacterSelect.innerHTML = '<option value="">All Characters</option>';
             
             for (const charName in characters) {
                 const option = document.createElement('option');
                 option.value = charName;
                 option.textContent = charName;
                 buffCharacterSelect.appendChild(option);
+                
+                const filterOption = document.createElement('option');
+                filterOption.value = charName;
+                filterOption.textContent = charName;
+                filterCharacterSelect.appendChild(filterOption);
+            }
+            
+            // Set the filter to match current filter
+            if (currentFilter.character) {
+                filterCharacterSelect.value = currentFilter.character;
             }
         }
         
         // Render buffs
-        function renderBuffs(filterChar = null) {
+        function renderBuffs() {
             buffsContainer.innerHTML = '';
             
             let hasBuffs = false;
             
             for (const charName in characters) {
-                if (filterChar && charName !== filterChar) continue;
+                if (currentFilter.character && charName !== currentFilter.character) continue;
                 
                 characters[charName].forEach((buff, index) => {
+                    if (currentFilter.buffName && 
+                        !buff.name.toLowerCase().includes(currentFilter.buffName.toLowerCase())) {
+                        return;
+                    }
+                    
                     hasBuffs = true;
                     const buffCard = document.createElement('div');
                     buffCard.className = 'buff-card';
-                    buffCard.innerHTML = `
+                    
+                    // Create organized buff display
+                    let buffHTML = `
                         <div class="buff-header">
                             <span class="buff-name">${buff.name}</span>
                             <div>
@@ -372,8 +551,66 @@
                                 <button class="delete-buff" data-character="${charName}" data-index="${index}">Delete</button>
                             </div>
                         </div>
-                        <div class="buff-details">${buff.description}</div>
+                        <div class="buff-details">
                     `;
+                    
+                    // Add properties if they exist
+                    if (buff.level && buff.school) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Level & School:</span>
+                            <span class="buff-value">${buff.level} Level ${buff.school}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.castingTime) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Casting Time:</span>
+                            <span class="buff-value">${buff.castingTime}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.range) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Range/Area:</span>
+                            <span class="buff-value">${buff.range}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.components) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Components:</span>
+                            <span class="buff-value">${buff.components}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.duration) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Duration:</span>
+                            <span class="buff-value">${buff.duration}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.source) {
+                        buffHTML += `<div class="buff-property">
+                            <span class="buff-label">Source:</span>
+                            <span class="buff-value">${buff.source}</span>
+                        </div>`;
+                    }
+                    
+                    if (buff.description) {
+                        buffHTML += `<div class="buff-description">${buff.description}</div>`;
+                    }
+                    
+                    if (buff.tags && buff.tags.length > 0) {
+                        buffHTML += `<div class="buff-tags">`;
+                        buff.tags.forEach(tag => {
+                            buffHTML += `<span class="buff-tag">${tag}</span>`;
+                        });
+                        buffHTML += `</div>`;
+                    }
+                    
+                    buffHTML += `</div>`;
+                    buffCard.innerHTML = buffHTML;
                     
                     buffsContainer.appendChild(buffCard);
                     
@@ -386,7 +623,7 @@
             }
             
             if (!hasBuffs) {
-                buffsContainer.innerHTML = '<div class="empty-state">No buffs added yet</div>';
+                buffsContainer.innerHTML = '<div class="empty-state">No buffs found matching your criteria</div>';
             }
         }
         
@@ -408,7 +645,7 @@
             saveData();
             characterNameInput.value = '';
             renderCharacters();
-            updateCharacterSelect();
+            updateCharacterSelects();
             showNotification(`Character "${name}" added successfully`);
         }
         
@@ -418,7 +655,7 @@
                 delete characters[name];
                 saveData();
                 renderCharacters();
-                updateCharacterSelect();
+                updateCharacterSelects();
                 renderBuffs();
                 showNotification(`Character "${name}" deleted`);
             }
@@ -439,15 +676,15 @@
                 return;
             }
             
-            // Parse the buff text to extract name and description
-            const lines = buffText.split('\n');
-            const buffName = lines[0].trim();
-            const buffDescription = buffText;
+            // Parse the buff text
+            const buff = parseBuffText(buffText);
             
-            characters[charName].push({
-                name: buffName,
-                description: buffDescription
-            });
+            if (!buff) {
+                showNotification('Could not parse buff text', 'error');
+                return;
+            }
+            
+            characters[charName].push(buff);
             
             saveData();
             buffTextInput.value = '';
@@ -465,9 +702,12 @@
             }
         }
         
-        // Filter buffs by character
-        function filterBuffsByCharacter(charName) {
-            renderBuffs(charName);
+        // Update filter
+        function updateFilter() {
+            currentFilter.character = filterCharacterSelect.value;
+            currentFilter.buffName = filterBuffInput.value;
+            renderBuffs();
+            renderCharacters();
         }
         
         // Save data to localStorage
@@ -520,7 +760,7 @@
                         characters = { ...characters, ...importedData };
                         saveData();
                         renderCharacters();
-                        updateCharacterSelect();
+                        updateCharacterSelects();
                         renderBuffs();
                         showNotification('Data imported successfully');
                     } else {
