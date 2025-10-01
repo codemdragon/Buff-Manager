@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D&D Buff Manager</title>
+    <style>
+        :root {
+            --parchment: #f4e4bc;
+            --dark-parchment: #e6d7a9;
+            --ink: #3a2615;
+            --gold: #c9a86a;
+            --red: #8b0000;
+            --dark-red: #5a0000;
+            --border-style: 2px solid #8b4513;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Times New Roman', serif;
+        }
+        
+        body {
+            background-color: var(--parchment);
+            color: var(--ink);
+            padding: 20px;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" opacity="0.05"><path fill="%238b4513" d="M0,0 L100,0 L100,100 L0,100 Z M10,10 L90,10 L90,90 L10,90 Z"/></svg>');
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            border: var(--border-style);
+            border-radius: 10px;
+            padding: 20px;
+            background-color: var(--dark-parchment);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: var(--border-style);
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .logo img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: var(--border-style);
+            background-color: var(--gold);
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: var(--red);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            letter-spacing: 2px;
+        }
+        
+        .character-section, .buff-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: var(--border-style);
+            border-radius: 5px;
+            background-color: var(--parchment);
+        }
+        
+        h2 {
+            color: var(--dark-red);
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--gold);
+            padding-bottom: 5px;
+        }
+        
+        .character-form, .buff-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input, select, textarea {
+            padding: 8px;
+            border: 1px solid #8b4513;
+            border-radius: 4px;
+            background-color: var(--parchment);
+            color: var(--ink);
+        }
+        
+        button {
+            padding: 8px 15px;
+            background-color: var(--red);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: var(--dark-red);
+        }
+        
+        .secondary-btn {
+            background-color: var(--gold);
+            color: var(--ink);
+        }
+        
+        .secondary-btn:hover {
+            background-color: #b89446;
+        }
+        
+        .characters-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .character-card {
+            border: var(--border-style);
+            border-radius: 5px;
+            padding: 15px;
+            width: 200px;
+            background-color: var(--dark-parchment);
+            position: relative;
+        }
+        
+        .character-card h3 {
+            color: var(--dark-red);
+            margin-bottom: 10px;
+        }
+        
+        .character-card .delete-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: transparent;
+            color: var(--red);
+            border: none;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        
+        .buffs-container {
+            margin-top: 20px;
+        }
+        
+        .buff-card {
+            border: 1px solid #8b4513;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 15px;
+            background-color: var(--parchment);
+        }
+        
+        .buff-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .buff-name {
+            font-weight: bold;
+            color: var(--dark-red);
+            font-size: 1.2rem;
+        }
+        
+        .buff-details {
+            margin-top: 10px;
+            white-space: pre-line;
+        }
+        
+        .export-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: var(--border-style);
+            border-radius: 5px;
+            background-color: var(--parchment);
+        }
+        
+        .export-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: var(--gold);
+            color: var(--ink);
+            border: var(--border-style);
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            display: none;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <img src="Logo.png" alt="D&D Buff Manager Logo">
+                <h1>D&D Buff Manager</h1>
+            </div>
+            <p>Track and manage your character buffs for Dungeons & Dragons</p>
+        </header>
+        
+        <section class="character-section">
+            <h2>Characters</h2>
+            <div class="character-form">
+                <input type="text" id="character-name" placeholder="Character Name">
+                <button id="add-character">Add Character</button>
+            </div>
+            <div class="characters-list" id="characters-list">
+                <!-- Character cards will be added here -->
+            </div>
+        </section>
+        
+        <section class="buff-section">
+            <h2>Buffs</h2>
+            <div class="buff-form">
+                <select id="buff-character">
+                    <option value="">Select Character</option>
+                </select>
+                <textarea id="buff-text" placeholder="Paste buff text here..." rows="6" cols="50"></textarea>
+                <button id="add-buff">Add Buff</button>
+            </div>
+            <div class="buffs-container" id="buffs-container">
+                <!-- Buff cards will be added here -->
+            </div>
+        </section>
+        
+        <section class="export-section">
+            <h2>Data Management</h2>
+            <p>Save your buff data for later use or transfer between devices</p>
+            <div class="export-controls">
+                <button id="download-data" class="secondary-btn">Download Data</button>
+                <button id="copy-data" class="secondary-btn">Copy to Clipboard</button>
+                <button id="import-data" class="secondary-btn">Import Data</button>
+                <input type="file" id="import-file" accept=".json" style="display: none;">
+            </div>
+        </section>
+    </div>
+    
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Data storage
+        let characters = JSON.parse(localStorage.getItem('dndBuffManager')) || {};
+        
+        // DOM elements
+        const characterNameInput = document.getElementById('character-name');
+        const addCharacterBtn = document.getElementById('add-character');
+        const charactersList = document.getElementById('characters-list');
+        const buffCharacterSelect = document.getElementById('buff-character');
+        const buffTextInput = document.getElementById('buff-text');
+        const addBuffBtn = document.getElementById('add-buff');
+        const buffsContainer = document.getElementById('buffs-container');
+        const downloadBtn = document.getElementById('download-data');
+        const copyBtn = document.getElementById('copy-data');
+        const importBtn = document.getElementById('import-data');
+        const importFileInput = document.getElementById('import-file');
+        const notification = document.getElementById('notification');
+        
+        // Initialize the app
+        function init() {
+            renderCharacters();
+            updateCharacterSelect();
+            renderBuffs();
+            
+            // Event listeners
+            addCharacterBtn.addEventListener('click', addCharacter);
+            addBuffBtn.addEventListener('click', addBuff);
+            downloadBtn.addEventListener('click', downloadData);
+            copyBtn.addEventListener('click', copyData);
+            importBtn.addEventListener('click', () => importFileInput.click());
+            importFileInput.addEventListener('change', importData);
+            
+            // Allow Enter key to add character
+            characterNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addCharacter();
+            });
+        }
+        
+        // Render characters list
+        function renderCharacters() {
+            charactersList.innerHTML = '';
+            
+            if (Object.keys(characters).length === 0) {
+                charactersList.innerHTML = '<div class="empty-state">No characters added yet</div>';
+                return;
+            }
+            
+            for (const charName in characters) {
+                const charCard = document.createElement('div');
+                charCard.className = 'character-card';
+                charCard.innerHTML = `
+                    <h3>${charName}</h3>
+                    <button class="delete-btn" data-character="${charName}">×</button>
+                    <p>${characters[charName].length} buff(s)</p>
+                `;
+                
+                charactersList.appendChild(charCard);
+                
+                // Add delete functionality
+                charCard.querySelector('.delete-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteCharacter(charName);
+                });
+                
+                // Add click to filter buffs by character
+                charCard.addEventListener('click', () => {
+                    filterBuffsByCharacter(charName);
+                });
+            }
+        }
+        
+        // Update character select dropdown
+        function updateCharacterSelect() {
+            buffCharacterSelect.innerHTML = '<option value="">Select Character</option>';
+            
+            for (const charName in characters) {
+                const option = document.createElement('option');
+                option.value = charName;
+                option.textContent = charName;
+                buffCharacterSelect.appendChild(option);
+            }
+        }
+        
+        // Render buffs
+        function renderBuffs(filterChar = null) {
+            buffsContainer.innerHTML = '';
+            
+            let hasBuffs = false;
+            
+            for (const charName in characters) {
+                if (filterChar && charName !== filterChar) continue;
+                
+                characters[charName].forEach((buff, index) => {
+                    hasBuffs = true;
+                    const buffCard = document.createElement('div');
+                    buffCard.className = 'buff-card';
+                    buffCard.innerHTML = `
+                        <div class="buff-header">
+                            <span class="buff-name">${buff.name}</span>
+                            <div>
+                                <span>${charName}</span>
+                                <button class="delete-buff" data-character="${charName}" data-index="${index}">Delete</button>
+                            </div>
+                        </div>
+                        <div class="buff-details">${buff.description}</div>
+                    `;
+                    
+                    buffsContainer.appendChild(buffCard);
+                    
+                    // Add delete functionality
+                    buffCard.querySelector('.delete-buff').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteBuff(charName, index);
+                    });
+                });
+            }
+            
+            if (!hasBuffs) {
+                buffsContainer.innerHTML = '<div class="empty-state">No buffs added yet</div>';
+            }
+        }
+        
+        // Add a new character
+        function addCharacter() {
+            const name = characterNameInput.value.trim();
+            
+            if (!name) {
+                showNotification('Please enter a character name', 'error');
+                return;
+            }
+            
+            if (characters[name]) {
+                showNotification('Character already exists', 'error');
+                return;
+            }
+            
+            characters[name] = [];
+            saveData();
+            characterNameInput.value = '';
+            renderCharacters();
+            updateCharacterSelect();
+            showNotification(`Character "${name}" added successfully`);
+        }
+        
+        // Delete a character
+        function deleteCharacter(name) {
+            if (confirm(`Are you sure you want to delete "${name}" and all their buffs?`)) {
+                delete characters[name];
+                saveData();
+                renderCharacters();
+                updateCharacterSelect();
+                renderBuffs();
+                showNotification(`Character "${name}" deleted`);
+            }
+        }
+        
+        // Add a buff
+        function addBuff() {
+            const charName = buffCharacterSelect.value;
+            const buffText = buffTextInput.value.trim();
+            
+            if (!charName) {
+                showNotification('Please select a character', 'error');
+                return;
+            }
+            
+            if (!buffText) {
+                showNotification('Please enter buff text', 'error');
+                return;
+            }
+            
+            // Parse the buff text to extract name and description
+            const lines = buffText.split('\n');
+            const buffName = lines[0].trim();
+            const buffDescription = buffText;
+            
+            characters[charName].push({
+                name: buffName,
+                description: buffDescription
+            });
+            
+            saveData();
+            buffTextInput.value = '';
+            renderBuffs();
+            showNotification(`Buff added to ${charName}`);
+        }
+        
+        // Delete a buff
+        function deleteBuff(charName, index) {
+            if (confirm('Are you sure you want to delete this buff?')) {
+                characters[charName].splice(index, 1);
+                saveData();
+                renderBuffs();
+                showNotification('Buff deleted');
+            }
+        }
+        
+        // Filter buffs by character
+        function filterBuffsByCharacter(charName) {
+            renderBuffs(charName);
+        }
+        
+        // Save data to localStorage
+        function saveData() {
+            localStorage.setItem('dndBuffManager', JSON.stringify(characters));
+        }
+        
+        // Download data as JSON file
+        function downloadData() {
+            const dataStr = JSON.stringify(characters, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            
+            const url = URL.createObjectURL(dataBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'dnd-buff-manager-data.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Data downloaded successfully');
+        }
+        
+        // Copy data to clipboard
+        function copyData() {
+            const dataStr = JSON.stringify(characters, null, 2);
+            
+            navigator.clipboard.writeText(dataStr).then(() => {
+                showNotification('Data copied to clipboard');
+            }).catch(err => {
+                showNotification('Failed to copy data', 'error');
+                console.error('Copy failed:', err);
+            });
+        }
+        
+        // Import data from file
+        function importData(event) {
+            const file = event.target.files[0];
+            
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    
+                    if (typeof importedData === 'object' && importedData !== null) {
+                        // Merge with existing data
+                        characters = { ...characters, ...importedData };
+                        saveData();
+                        renderCharacters();
+                        updateCharacterSelect();
+                        renderBuffs();
+                        showNotification('Data imported successfully');
+                    } else {
+                        showNotification('Invalid data format', 'error');
+                    }
+                } catch (err) {
+                    showNotification('Error parsing file', 'error');
+                    console.error('Import error:', err);
+                }
+                
+                // Reset file input
+                importFileInput.value = '';
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        // Show notification
+        function showNotification(message, type = 'success') {
+            notification.textContent = message;
+            notification.style.display = 'block';
+            notification.style.backgroundColor = type === 'error' ? '#ffcccc' : '#c9a86a';
+            
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Initialize the app
+        init();
+    </script>
+</body>
+</html>
